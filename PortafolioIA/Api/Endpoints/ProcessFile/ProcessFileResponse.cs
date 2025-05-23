@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace Application.Dto
+﻿namespace Api.Endpoints.ProcessFile
 {
     public class ProcessFileResponse
     {

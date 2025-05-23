@@ -1,8 +1,4 @@
-﻿
-
-using Microsoft.AspNetCore.Http;
-
-namespace Application.Dto
+﻿namespace Api.Endpoints.ProcessFile
 {
     public class ProcessFileRequest
     {
