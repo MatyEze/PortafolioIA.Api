@@ -5,6 +5,7 @@ using FluentValidation;
 using FastEndpoints;
 using Application.Interfaces;
 using Infrastructure.Repositories;
+using Api.Mapping;
 
 namespace Api.Extensions;
 
@@ -22,15 +23,18 @@ public static class ServiceRegistration
         // 2) FastEndpoints
         services.AddFastEndpoints();
 
-        // 3) FluentValidation
-        services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+        // 3) FluentValidation - FastEndpoints lo registrará automáticamente
+        // Los validators en Api/Validators/ serán encontrados automáticamente
 
-        // 4) Mapster (registro de mapeos)
+        // 4) Mapster
         services.AddMapster();
 
-        // 5) Repositorios y servicios de Infraestructura
+        // Configurar mappings de Mapster
+        MappingConfig.RegisterMappings();
+
+        // 5) Repositorios
         services.AddScoped<IDataPointRepository, DataPointRepository>();
-        // TODO: Agregar más repositorios (IActivoRepository, IDivisaRepository, etc.)
+
 
         return services;
     }
