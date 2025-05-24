@@ -30,6 +30,7 @@ artifacts/
 
 # Visual Studio workspace
 .vs/
+*.csproj.user
 
 # Carpetas de compilación
 bin/
