@@ -25,12 +25,16 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
         Post("/api/portfolio/process-file");
         AllowFileUploads();
         AllowAnonymous(); // Ajustar según necesidades de auth
+
         Summary(s =>
         {
             s.Summary = "Procesar archivo de movimientos de broker";
-            s.Description = "Recibe un archivo de un broker específico y lo procesa para generar movimientos";
+            s.Description = "Recibe un archivo de un broker específico y lo procesa para generar movimientos financieros";
+            s.RequestParam(r => r.File, "Archivo Excel/CSV con el historial de movimientos");
+            s.RequestParam(r => r.BrokerKey, "Clave del broker (IOL, BALANZ, BULL)");
             s.Responses[200] = "Archivo procesado exitosamente";
             s.Responses[400] = "Archivo o parámetros inválidos";
+            s.Responses[409] = "Archivo ya procesado anteriormente";
             s.Responses[500] = "Error interno del servidor";
         });
     }
@@ -44,24 +48,53 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
             // 1. Verificar que el parser puede manejar el archivo
             if (!_fileParsingService.CanParse(request.BrokerKey, request.File.FileName))
             {
-                await SendErrorsAsync(400, ct);
+                var supportedBrokers = string.Join(", ", _fileParsingService.GetSupportedBrokers());
+                var supportedExtensions = string.Join(", ", _fileParsingService.GetSupportedExtensions());
+
+                ThrowError($"No se puede procesar el archivo '{request.File.FileName}' para el broker '{request.BrokerKey}'");
+                ThrowError($"Brokers soportados: {supportedBrokers}");
+                ThrowError($"Extensiones soportadas: {supportedExtensions}");
+            }
+
+            // 2. Verificar si el archivo ya fue procesado
+            var fileExists = await _dataPointRepository.ExistsWithSameFileAsync(
+                request.File.FileName,
+                request.File.Length);
+
+            if (fileExists)
+            {
+                await SendAsync(new ProcessFileResponse
+                {
+                    DataPointId = Guid.Empty,
+                    Status = "Failed",
+                    FileName = request.File.FileName,
+                    BrokerKey = request.BrokerKey,
+                    ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                    ProcessedAt = DateTime.UtcNow,
+                    Errores = new List<string>
+                    {
+                        "Este archivo ya ha sido procesado anteriormente",
+                        "Verifique el historial de archivos procesados"
+                    }
+                }, 409, ct);
                 return;
             }
 
-            // 2. Crear FileMetadata
+            // 3. Crear FileMetadata
             var fileMetadata = new FileMetadata(
                 request.File.FileName,
                 request.File.Length,
-                request.File.ContentType);
+                request.File.ContentType ?? "application/octet-stream");
 
-            // 3. Crear DataPoint
+            // 4. Crear y guardar DataPoint
             var dataPoint = DataPoint.Create(fileMetadata);
             await _dataPointRepository.AddAsync(dataPoint);
 
-            // 4. Iniciar procesamiento
+            // 5. Iniciar procesamiento
             dataPoint.StartProcessing();
+            await _dataPointRepository.UpdateAsync(dataPoint);
 
-            // 5. Parsear archivo
+            // 6. Parsear archivo
             using var stream = request.File.OpenReadStream();
             var parsingResult = await _fileParsingService.ParseFileAsync(
                 stream,
@@ -69,19 +102,23 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
                 request.BrokerKey,
                 dataPoint.Id);
 
+            // 7. Verificar si el parsing fue exitoso
             if (!parsingResult.IsSuccess)
             {
                 dataPoint.MarkFailed(string.Join("; ", parsingResult.Errores));
                 await _dataPointRepository.UpdateAsync(dataPoint);
 
                 stopwatch.Stop();
+
                 var failureResponse = new ProcessFileResponse
                 {
                     DataPointId = dataPoint.Id,
                     Status = "Failed",
                     FileName = request.File.FileName,
                     BrokerKey = request.BrokerKey,
+                    MovimientosCount = 0,
                     ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                    ProcessedAt = DateTime.UtcNow,
                     Errores = parsingResult.Errores,
                     Advertencias = parsingResult.Advertencias
                 };
@@ -90,26 +127,51 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
                 return;
             }
 
-            // 6. Agregar movimientos al DataPoint
+            // 8. Agregar movimientos al DataPoint
             dataPoint.AddMovements(parsingResult.Movimientos);
             dataPoint.MarkCompleted();
 
-            // 7. Guardar cambios
+            // 9. Guardar cambios finales
             await _dataPointRepository.UpdateAsync(dataPoint);
 
             stopwatch.Stop();
 
-            // 8. Crear respuesta exitosa
-            var response = dataPoint.Adapt<ProcessFileResponse>();
-            response.BrokerKey = request.BrokerKey;
-            response.ProcessingTimeMs = stopwatch.ElapsedMilliseconds;
-            response.Advertencias = parsingResult.Advertencias;
-            response.Summary = parsingResult.Adapt<ProcessingSummaryDto>();
+            // 10. Crear respuesta exitosa usando Mapster
+            var response = new ProcessFileResponse
+            {
+                DataPointId = dataPoint.Id,
+                Status = dataPoint.Status.ToString(),
+                FileName = request.File.FileName,
+                BrokerKey = request.BrokerKey,
+                MovimientosCount = parsingResult.Movimientos.Count,
+                ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                ProcessedAt = DateTime.UtcNow,
+                Errores = new List<string>(),
+                Advertencias = parsingResult.Advertencias,
+                Summary = CreateSummary(parsingResult.Movimientos)
+            };
 
             await SendOkAsync(response, ct);
         }
+        catch (InvalidOperationException ex)
+        {
+            // Errores de negocio/dominio
+            stopwatch.Stop();
+
+            await SendAsync(new ProcessFileResponse
+            {
+                DataPointId = Guid.Empty,
+                Status = "Failed",
+                FileName = request.File.FileName,
+                BrokerKey = request.BrokerKey,
+                ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                ProcessedAt = DateTime.UtcNow,
+                Errores = new List<string> { ex.Message }
+            }, 400, ct);
+        }
         catch (Exception ex)
         {
+            // Errores inesperados
             stopwatch.Stop();
 
             var errorResponse = new ProcessFileResponse
@@ -118,11 +180,48 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
                 Status = "Failed",
                 FileName = request.File.FileName,
                 BrokerKey = request.BrokerKey,
+                MovimientosCount = 0,
                 ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
-                Errores = new List<string> { ex.Message }
+                ProcessedAt = DateTime.UtcNow,
+                Errores = new List<string> { "Error interno del servidor", ex.Message }
             };
 
             await SendAsync(errorResponse, 500, ct);
         }
+    }
+
+    private static ProcessingSummaryDto CreateSummary(List<Domain.Entities.Movimiento> movimientos)
+    {
+        if (!movimientos.Any())
+        {
+            return new ProcessingSummaryDto();
+        }
+
+        var summary = new ProcessingSummaryDto
+        {
+            TotalCompras = movimientos.Count(m => m.Tipo == Domain.Entities.TipoMovimiento.Compra),
+            TotalVentas = movimientos.Count(m => m.Tipo == Domain.Entities.TipoMovimiento.Venta),
+            TotalDepositos = movimientos.Count(m => m.Tipo == Domain.Entities.TipoMovimiento.Deposito),
+            TotalExtracciones = movimientos.Count(m => m.Tipo == Domain.Entities.TipoMovimiento.Extraccion),
+            TotalDividendos = movimientos.Count(m => m.Tipo == Domain.Entities.TipoMovimiento.Dividendos),
+            TotalCauciones = movimientos.Count(m => m.Tipo == Domain.Entities.TipoMovimiento.Caucion ||
+                                                    m.Tipo == Domain.Entities.TipoMovimiento.LiquidacionCaucion),
+            TotalOtros = movimientos.Count(m => m.Tipo == Domain.Entities.TipoMovimiento.Otro ||
+                                               m.Tipo == Domain.Entities.TipoMovimiento.SuscripcionFondo ||
+                                               m.Tipo == Domain.Entities.TipoMovimiento.RescateFondo ||
+                                               m.Tipo == Domain.Entities.TipoMovimiento.Credito),
+            MontoTotalOperado = movimientos.Sum(m => Math.Abs(m.MontoTotal)),
+            MovimientosPorTicker = movimientos
+                .Where(m => !string.IsNullOrEmpty(m.Ticker))
+                .GroupBy(m => m.Ticker!)
+                .ToDictionary(g => g.Key, g => g.Count()),
+            MontosPorMoneda = movimientos
+                .GroupBy(m => m.Moneda.ToString())
+                .ToDictionary(g => g.Key, g => g.Sum(m => Math.Abs(m.MontoTotal))),
+            FechaDesde = movimientos.Min(m => m.FechaConcertacion),
+            FechaHasta = movimientos.Max(m => m.FechaConcertacion)
+        };
+
+        return summary;
     }
 }

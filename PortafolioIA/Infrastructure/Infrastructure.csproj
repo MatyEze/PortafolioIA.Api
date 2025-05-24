@@ -13,10 +13,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Parsing\" />
+    <PackageReference Include="NPOI" Version="2.7.3" />
   </ItemGroup>
 
   <PropertyGroup>
