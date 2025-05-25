@@ -1,6 +1,22 @@
-@Api_HostAddress = http://localhost:5090
+@Api_HostAddress = https://localhost:7088
 
-GET {{Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Test ProcessFile Endpoint
+POST {{Api_HostAddress}}/api/portfolio/process-file
+Content-Type: multipart/form-data; boundary=boundary
 
-###
+--boundary
+Content-Disposition: form-data; name="BrokerKey"
+
+IOL
+--boundary
+Content-Disposition: form-data; name="File"; filename="movimientos_iol.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< ./test-files/movimientos_iol.xlsx
+--boundary--
+
+### Get Swagger UI
+GET {{Api_HostAddress}}/swagger
+
+### Health Check
+GET {{Api_HostAddress}}/api/health

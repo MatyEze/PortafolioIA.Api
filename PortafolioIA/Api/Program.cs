@@ -1,36 +1,41 @@
 using Api.Extensions;
-using Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
+using FastEndpoints;
+using FastEndpoints.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Swagger/OpenAPI
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-// Registrar todos los servicios de la solución
+// Add services to the container
 builder.Services.AddPortfolioServices(builder.Configuration);
+
+// Add Swagger/OpenAPI
+builder.Services.SwaggerDocument(o =>
+{
+    o.DocumentSettings = s =>
+    {
+        s.Title = "Portfolio IA API";
+        s.Version = "v1";
+        s.Description = "API para procesamiento de archivos de brokers y análisis de portfolio";
+    };
+});
 
 var app = builder.Build();
 
-// Pipeline de desarrollo
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerGen();
 }
 
-// HTTPS
 app.UseHttpsRedirection();
 
-// Migraciones automáticas (opcional)
-using (var scope = app.Services.CreateScope())
+// Use FastEndpoints
+app.UseFastEndpoints(c =>
 {
-    var db = scope.ServiceProvider.GetRequiredService<PortfolioDbContext>();
-    db.Database.Migrate();
-}
+    c.Endpoints.RoutePrefix = "api";
+    c.Serializer.Options.PropertyNamingPolicy = null; // Mantener nombres originales
+});
 
-// Registrar endpoints (FastEndpoints)
+// Use Portfolio endpoints
 app.UsePortfolioEndpoints();
 
 app.Run();
