@@ -225,8 +225,8 @@ namespace Infrastructure.Parsing
                 var nroMovimiento = ParseInt(rowData[0]);
                 var nroBoleto = rowData.Count > 1 ? rowData[1] : "";
                 var tipoMovStr = rowData.Count > 2 ? rowData[2] : "";
-                var fechaConcertacion = rowData.Count > 3 ? ParseFecha(rowData[3], culture) : DateTime.MinValue;
-                var fechaLiquidacion = rowData.Count > 4 ? ParseFecha(rowData[4], culture) : DateTime.MinValue;
+                var fechaConcertacion = rowData.Count > 3 ? ParseFecha(rowData[3], culture) : DateTimeOffset.UtcNow.Date;
+                var fechaLiquidacion = rowData.Count > 4 ? ParseFecha(rowData[4], culture) : DateTimeOffset.UtcNow.Date;
                 var cantidad = rowData.Count > 6 ? ParseInt(rowData[6]) : 0;
                 var precio = rowData.Count > 7 ? ParseDecimal(rowData[7], culture) : 0;
                 var comision = rowData.Count > 8 ? ParseDecimal(rowData[8], culture) : 0;
@@ -318,15 +318,17 @@ namespace Infrastructure.Parsing
             };
         }
 
-        private static DateTime ParseFecha(string? fechaStr, CultureInfo culture)
+        private static DateTimeOffset ParseFecha(string? fechaStr, CultureInfo culture)
         {
             if (string.IsNullOrEmpty(fechaStr))
-                return DateTime.MinValue;
+                return DateTimeOffset.UtcNow.Date;
 
             if (DateTime.TryParse(fechaStr, culture, DateTimeStyles.None, out DateTime fecha))
-                return fecha;
+            {
+                return new DateTimeOffset(fecha, TimeSpan.Zero); // Offset UTC
+            }
 
-            return DateTime.MinValue;
+            return DateTimeOffset.UtcNow.Date;
         }
 
         private static int ParseInt(string? value)
@@ -353,11 +355,11 @@ namespace Infrastructure.Parsing
             else
                 statistics.MovimientosPorTipo[tipoKey] = 1;
 
-            if (statistics.FechaMasAntigua == null || movimiento.FechaConcertacion < statistics.FechaMasAntigua)
-                statistics.FechaMasAntigua = movimiento.FechaConcertacion;
+            if (statistics.FechaMasAntigua == null || movimiento.FechaConcertacion.DateTime < statistics.FechaMasAntigua)
+                statistics.FechaMasAntigua = movimiento.FechaConcertacion.DateTime;
 
-            if (statistics.FechaMasReciente == null || movimiento.FechaConcertacion > statistics.FechaMasReciente)
-                statistics.FechaMasReciente = movimiento.FechaConcertacion;
+            if (statistics.FechaMasReciente == null || movimiento.FechaConcertacion.DateTime > statistics.FechaMasReciente)
+                statistics.FechaMasReciente = movimiento.FechaConcertacion.DateTime;
         }
 
         #endregion

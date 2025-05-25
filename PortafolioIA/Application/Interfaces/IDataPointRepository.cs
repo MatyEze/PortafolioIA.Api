@@ -14,8 +14,9 @@ namespace Application.Interfaces
         /// Agrega un nuevo DataPoint
         /// </summary>
         /// <param name="dataPoint">DataPoint a agregar</param>
+        /// <param name="saveChanges">Indica si se deben guardar los cambios inmediatamente</param>
         /// <returns>DataPoint agregado</returns>
-        Task<DataPoint> AddAsync(DataPoint dataPoint);
+        Task<DataPoint> AddAsync(DataPoint dataPoint, bool saveChanges = true);
 
         /// <summary>
         /// Obtiene un DataPoint por su ID incluyendo movimientos
@@ -35,7 +36,8 @@ namespace Application.Interfaces
         /// Actualiza un DataPoint existente
         /// </summary>
         /// <param name="dataPoint">DataPoint a actualizar</param>
-        Task UpdateAsync(DataPoint dataPoint);
+        /// <param name="saveChanges">Indica si se deben guardar los cambios inmediatamente</param>
+        Task UpdateAsync(DataPoint dataPoint, bool saveChanges = true);
 
         /// <summary>
         /// Obtiene todos los DataPoints con paginación
@@ -66,6 +68,12 @@ namespace Application.Interfaces
         /// <param name="id">ID del DataPoint a eliminar</param>
         /// <returns>True si se eliminó correctamente</returns>
         Task<bool> DeleteAsync(Guid id);
+
+        /// <summary>
+        /// Guarda los cambios en el contexto actual
+        /// </summary>
+        /// <returns></returns>
+        Task SaveChangesAsync();
 
         /// <summary>
         /// Verifica si existe un DataPoint con el mismo archivo (nombre y tamaño)

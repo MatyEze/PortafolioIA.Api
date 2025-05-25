@@ -25,8 +25,8 @@ namespace Domain.Entities
         public string Broker { get; private set; }
         public string? Ticker { get; private set; }
         public TipoMovimiento Tipo { get; private set; }
-        public DateTime FechaConcertacion { get; private set; }
-        public DateTime FechaLiquidacion { get; private set; }
+        public DateTimeOffset FechaConcertacion { get; private set; }
+        public DateTimeOffset FechaLiquidacion { get; private set; }
         public int Cantidad { get; private set; }
         public decimal Precio { get; private set; }
         public decimal Comision { get; private set; }
@@ -49,8 +49,8 @@ namespace Domain.Entities
             int numeroMovimiento,
             string broker,
             TipoMovimiento tipo,
-            DateTime fechaConcertacion,
-            DateTime fechaLiquidacion,
+            DateTimeOffset fechaConcertacion,
+            DateTimeOffset fechaLiquidacion,
             int cantidad,
             decimal precio,
             decimal comision,

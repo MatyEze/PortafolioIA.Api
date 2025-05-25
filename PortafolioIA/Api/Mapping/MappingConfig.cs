@@ -32,8 +32,8 @@ namespace Api.Mapping
                 .Map(dest => dest.TotalCauciones, src => src.Movimientos.Count(m => m.Tipo == TipoMovimiento.Caucion || m.Tipo == TipoMovimiento.LiquidacionCaucion))
                 .Map(dest => dest.TotalOtros, src => src.Movimientos.Count(m => m.Tipo == TipoMovimiento.Otro))
                 .Map(dest => dest.MontoTotalOperado, src => src.Movimientos.Sum(m => Math.Abs(m.MontoTotal)))
-                .Map(dest => dest.FechaDesde, src => src.Movimientos.Any() ? src.Movimientos.Min(m => m.FechaConcertacion) : DateTime.MinValue)
-                .Map(dest => dest.FechaHasta, src => src.Movimientos.Any() ? src.Movimientos.Max(m => m.FechaConcertacion) : DateTime.MinValue);
+                .Map(dest => dest.FechaDesde, src => src.Movimientos.Any() ? src.Movimientos.Min(m => m.FechaConcertacion).DateTime : DateTime.MinValue)
+                .Map(dest => dest.FechaHasta, src => src.Movimientos.Any() ? src.Movimientos.Max(m => m.FechaConcertacion).DateTime : DateTime.MinValue);
 
             // Activo -> ActivoPositionDto
             TypeAdapterConfig<Activo, ActivoPositionDto>
@@ -51,8 +51,8 @@ namespace Api.Mapping
                 .NewConfig()
                 .Map(dest => dest.TotalMovimientos, src => src.Count)
                 .Map(dest => dest.TotalComisionesImpuestos, src => src.Sum(m => m.ObtenerTotalComisionesImpuestos()))
-                .Map(dest => dest.FechaMovimientoMasAntiguo, src => src.Any() ? src.Min(m => m.FechaConcertacion) : DateTime.MinValue)
-                .Map(dest => dest.FechaMovimientoMasReciente, src => src.Any() ? src.Max(m => m.FechaConcertacion) : DateTime.MinValue);
+                .Map(dest => dest.FechaMovimientoMasAntiguo, src => src.Any() ? src.Min(m => m.FechaConcertacion).DateTime : DateTime.MinValue)
+                .Map(dest => dest.FechaMovimientoMasReciente, src => src.Any() ? src.Max(m => m.FechaConcertacion).DateTime : DateTime.MinValue);
 
             // Configurar mapping de Enums a string si es necesario
             TypeAdapterConfig<DataPointStatus, string>

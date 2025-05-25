@@ -86,13 +86,11 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
                 request.File.Length,
                 request.File.ContentType ?? "application/octet-stream");
 
-            // 4. Crear y guardar DataPoint
+            // 4. Crear DataPoint (solo en memoria)
             var dataPoint = DataPoint.Create(fileMetadata);
-            await _dataPointRepository.AddAsync(dataPoint);
 
             // 5. Iniciar procesamiento
             dataPoint.StartProcessing();
-            await _dataPointRepository.UpdateAsync(dataPoint);
 
             // 6. Parsear archivo
             using var stream = request.File.OpenReadStream();
@@ -102,12 +100,25 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
                 request.BrokerKey,
                 dataPoint.Id);
 
-            // 7. Verificar si el parsing fue exitoso
+            // 7. Procesar resultado del parsing
             if (!parsingResult.IsSuccess)
             {
+                // Marcar como fallido
                 dataPoint.MarkFailed(string.Join("; ", parsingResult.Errores));
-                await _dataPointRepository.UpdateAsync(dataPoint);
+            }
+            else
+            {
+                // Agregar movimientos y marcar como completado
+                dataPoint.AddMovements(parsingResult.Movimientos);
+                dataPoint.MarkCompleted();
+            }
 
+            // 8. Guardar TODO de una sola vez (DataPoint + Movimientos + Status)
+            await _dataPointRepository.AddAsync(dataPoint, saveChanges: true);
+
+            // 9. Verificar si hubo errores y crear respuesta apropiada
+            if (!parsingResult.IsSuccess)
+            {
                 stopwatch.Stop();
 
                 var failureResponse = new ProcessFileResponse
@@ -126,13 +137,6 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
                 await SendOkAsync(failureResponse, ct);
                 return;
             }
-
-            // 8. Agregar movimientos al DataPoint
-            dataPoint.AddMovements(parsingResult.Movimientos);
-            dataPoint.MarkCompleted();
-
-            // 9. Guardar cambios finales
-            await _dataPointRepository.UpdateAsync(dataPoint);
 
             stopwatch.Stop();
 
@@ -218,8 +222,8 @@ public class ProcessFileEndpoint : Endpoint<ProcessFileRequest, ProcessFileRespo
             MontosPorMoneda = movimientos
                 .GroupBy(m => m.Moneda.ToString())
                 .ToDictionary(g => g.Key, g => g.Sum(m => Math.Abs(m.MontoTotal))),
-            FechaDesde = movimientos.Min(m => m.FechaConcertacion),
-            FechaHasta = movimientos.Max(m => m.FechaConcertacion)
+            FechaDesde = movimientos.Min(m => m.FechaConcertacion).DateTime,
+            FechaHasta = movimientos.Max(m => m.FechaConcertacion).DateTime
         };
 
         return summary;

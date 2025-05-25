@@ -14,10 +14,13 @@ namespace Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<DataPoint> AddAsync(DataPoint dataPoint)
+        public async Task<DataPoint> AddAsync(DataPoint dataPoint, bool saveChanges = true)
         {
             _context.DataPoints.Add(dataPoint);
-            await _context.SaveChangesAsync();
+
+            if (saveChanges)
+                await SaveChangesAsync();
+
             return dataPoint;
         }
 
@@ -34,9 +37,15 @@ namespace Infrastructure.Repositories
                 .FirstOrDefaultAsync(dp => dp.Id == id);
         }
 
-        public async Task UpdateAsync(DataPoint dataPoint)
+        public async Task UpdateAsync(DataPoint dataPoint, bool saveChanges = true)
         {
             _context.DataPoints.Update(dataPoint);
+            if (saveChanges)
+                await SaveChangesAsync();
+        }
+
+        public async Task SaveChangesAsync()
+        {
             await _context.SaveChangesAsync();
         }
 
