@@ -35,7 +35,4 @@ app.UseFastEndpoints(c =>
     c.Serializer.Options.PropertyNamingPolicy = null; // Mantener nombres originales
 });
 
-// Use Portfolio endpoints
-app.UsePortfolioEndpoints();
-
 app.Run();
