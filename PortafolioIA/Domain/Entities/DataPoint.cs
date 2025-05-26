@@ -14,6 +14,7 @@ public class DataPoint
 {
     // Propiedades del agregado
     public Guid Id { get; private set; }
+    public Guid UserId { get; private set; } // Nueva propiedad
     public DateTimeOffset CreatedAt { get; private set; }
     public FileMetadata File { get; private set; }
     public DataPointStatus Status { get; private set; }
@@ -24,15 +25,36 @@ public class DataPoint
     public IReadOnlyCollection<Movimiento> Movements
         => _movements.AsReadOnly();
 
+    // Navigation properties
+    public User User { get; private set; } // Nueva navigation property
+
     // Constructor privado para EF Core
     private DataPoint() { }
 
-    // Factory method para crear un nuevo DataPoint
-    public static DataPoint Create(FileMetadata fileMeta)
+    // Factory method para crear un nuevo DataPoint - ACTUALIZADO
+    public static DataPoint Create(Guid userId, FileMetadata fileMeta)
     {
+        if (userId == Guid.Empty)
+            throw new ArgumentException("UserId no puede estar vacío", nameof(userId));
+
         return new DataPoint
         {
             Id = Guid.NewGuid(),
+            UserId = userId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            File = fileMeta,
+            Status = DataPointStatus.Pending
+        };
+    }
+
+    // Factory method manteniendo compatibilidad hacia atrás
+    public static DataPoint Create(FileMetadata fileMeta)
+    {
+        // Temporalmente crear sin usuario hasta que se migre todo el código
+        return new DataPoint
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.Empty, // Temporal
             CreatedAt = DateTimeOffset.UtcNow,
             File = fileMeta,
             Status = DataPointStatus.Pending
@@ -70,5 +92,20 @@ public class DataPoint
     {
         Status = DataPointStatus.Failed;
         ErrorMessage = error;
+    }
+
+    // Verificar si el usuario es propietario
+    public bool BelongsToUser(Guid userId)
+    {
+        return UserId == userId;
+    }
+
+    // Método para asociar a un usuario (para migración)
+    public void AssignToUser(Guid userId)
+    {
+        if (userId == Guid.Empty)
+            throw new ArgumentException("UserId no puede estar vacío", nameof(userId));
+
+        UserId = userId;
     }
 }
