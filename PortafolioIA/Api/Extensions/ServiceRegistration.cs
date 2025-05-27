@@ -7,6 +7,8 @@ using Application.Interfaces;
 using Infrastructure.Repositories;
 using Infrastructure.Parsing;
 using Api.Mapping;
+using MediatR;
+using Application;
 
 namespace Api.Extensions;
 
@@ -31,22 +33,25 @@ public static class ServiceRegistration
         services.AddDbContext<PortfolioDbContext>(opts =>
             opts.UseNpgsql(fullConnectionString));
 
-        // 2) FastEndpoints
+        // 2) MediatR - Configuración CQRS
+        services.AddMediatR(typeof(AssemblyReference));
+
+        // 3) FastEndpoints
         services.AddFastEndpoints();
 
-        // 3) FluentValidation - FastEndpoints lo registrará automáticamente
+        // 4) FluentValidation - FastEndpoints lo registrará automáticamente
         // Los validators en Api/Validators/ serán encontrados automáticamente
 
-        // 4) Mapster
+        // 5) Mapster
         services.AddMapster();
 
         // Configurar mappings de Mapster
         MappingConfig.RegisterMappings();
 
-        // 5) Repositorios
+        // 6) Repositorios
         services.AddScoped<IDataPointRepository, DataPointRepository>();
 
-        // 6) Servicios de parsing - Registrar parsers individuales primero
+        // 7) Servicios de parsing - Registrar parsers individuales primero
         services.AddScoped<IOLExcelParser>();
 
         // Luego registrar el factory que los consume
